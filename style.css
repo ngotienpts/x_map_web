@@ -1,0 +1,493 @@
+/* ===== STYLE.CSS - UPDATED FOR CANVAS ALL-IN-ONE ===== */
+/* Simplified CSS - Loại bỏ styles cho elements đã chuyển sang Canvas */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+    background-color: rgb(18, 18, 18);
+    width: 100%;
+    height: 100%;
+}
+
+#car-icon {width: 45px; height: 43px; transform: translate(-50%, -100%) rotate(0deg); /*transition: transform 0.3s linear*/}
+body.dragging #car-icon {transition: none;}
+body.navigating .hide-navigating {display: none !important;}
+.show-navigating {display: none;}
+body.navigating .show-navigating {display: flex !important;}
+
+/* ===== MAP CONTAINER ===== */
+
+#map {width: 100%; height: 100%; position: fixed; left: 0; bottom: 0}
+.maplibregl-control-container {display: none;}
+
+#rotate-button svg {transform: rotate(var(--rotate, 0deg));}
+
+
+/* ===== SPEED PANEL ===== */
+.speed-panel {position: fixed; top: 15px; right: 15px; z-index: 9999;}
+
+.speed-panel .speed-value {font-size: 60px; line-height: 56px; font-family: "Michroma", sans-serif; color: #FFF;}
+
+#speed-limit {position: fixed; font-size: 16px; width: 48px; height: 48px; background: #FFF; border-radius: 48px; border: 4px solid #EE0204; padding-top: 8px; font-weight: bold; text-align: center; font-family: "Michroma", sans-serif; color: #000; top: 90px;right: 15px;}
+#speed-limit.over-100 {font-size: 14px; padding-top: 9px;}
+
+#speed-limit:empty {
+    display: none !important;
+}
+
+/* ===== ROUTE INFO PANEL ===== */
+#this-road {position: fixed; bottom: 0; z-index: 9; min-width: 220px; text-align: center; color: #FFF; left: 50%; background-color: #22262A; background: linear-gradient(135deg, #4A90E2, #357ABD); border-radius: 8px; padding: 10px 20px; height: 40px; line-height: 19px; font-size: 19px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; border-bottom-left-radius: 0; border-bottom-right-radius: 0; transform: translate(-50%, 0); transition: bottom 0.8s ease; max-width: 100%;}
+#this-road:empty {bottom: -40px}
+
+
+/* ===== NAVIGATION PANEL ===== */
+.navigation-panel {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 99;
+    color: white;
+    min-width: 200px;
+    max-width: 300px;
+}
+
+
+#turn-lanes-panel {display: flex ; align-items: center; justify-content: center; background: linear-gradient(135deg, #4A90E2, #357ABD); padding: 8px 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); gap: 0; margin-bottom: 10px; z-index: 9999999; position: fixed; top: 0; left: 50%; transform: translate(-50%, 0); border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;}
+#turn-lanes-panel:empty {display: none;}
+#turn-lanes-panel span {
+    flex: 1; /* Mỗi span chiếm đều diện tích */
+    display: flex;
+    justify-content: center;
+}
+#turn-lanes-panel img {
+  height: 25px;
+  width: auto;
+}
+
+#turn-lanes-panel span:not(:last-child) {
+  border-right: 1px solid #88C1FF;
+  padding-right: 10px;
+  margin-right: 10px;
+}
+
+.navigation-panel .bg-black {
+    background-color: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-radius: 12px;
+    padding: 12px 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.nav-instruction {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.nav-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.nav-icon img {
+    width: 32px;
+    height: 32px;
+    fill: white;
+}
+
+.nav-details {
+    flex: 1;
+}
+
+.nav-distance {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.nav-street {
+    font-size: 14px;
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nav-end {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #aaa;
+    justify-content: space-between;
+}
+
+.nav-end .route-time {font-size: 18px; color: #FFF; font-weight: bold; border-right: 1px solid rgba(255, 255, 255, 0.2); padding-right: 15px;}
+
+.nav-end .route-value {font-size: 18px; color: #FFF; font-weight: bold;}
+
+.nav-roundabout-exit {
+    font-size: 14px;
+    color: #4CAF50;
+    margin-top: 5px;
+}
+
+@keyframes pulse-nav {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+.nav-icon.arriving {
+    animation: pulse-nav 1s infinite;
+    background-color: #4CAF50;
+}
+
+/* ===== TRAFFIC SIGNS (VẪN DÙNG DOM) ===== */
+.traffic-sign {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background-color: #ff0000;
+    border: 2px solid white;
+    border-radius: 50%;
+    z-index: 1002;
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    color: white;
+    font-weight: bold;
+}
+
+.traffic-sign.warning {
+    background-color: #ffaa00;
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    border-radius: 0;
+}
+
+.traffic-sign.prohibition {
+    background-color: #ff0000;
+    border-radius: 50%;
+}
+
+.traffic-sign.mandatory {
+    background-color: #0066cc;
+    border-radius: 50%;
+}
+
+.traffic-sign.information {
+    background-color: #00aa00;
+    border-radius: 0;
+    display: none;
+}
+
+.speed-limit-sign {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    background-color: white;
+    border: 3px solid red;
+    border-radius: 50%;
+    z-index: 1002;
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+
+
+/* ===== CONTROLS ===== */
+.controls {
+    position: fixed;
+    bottom: 15px;
+    right: 15px;
+    z-index: 1002;
+    display: grid;
+    flex-direction: column;
+    gap: 5px;
+}
+
+
+.controls button {
+    background-color: #3D4552;
+    border: none;
+    border-radius: 4px;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    font-weight: bold;
+    user-select: none;
+    touch-action: manipulation;
+    outline: none;
+}
+
+.controls button svg {
+    margin: 0 10px;
+    height: auto;
+}
+
+
+
+.controls button:active {
+    transform: scale(0.8);
+}
+
+/* Toggle buttons */
+.signs-toggle {
+    background-color: #2196F3 !important;
+    color: white !important;
+    font-size: 12px !important;
+}
+
+.signs-toggle.active {
+    background-color: #4CAF50 !important;
+}
+
+/* ===== ACTION BUTTON ===== */
+#action-button {
+    position: fixed; 
+    bottom: 15px; 
+    left: 15px;
+    z-index: 1002;
+    display: grid;
+    flex-direction: column;
+    gap: 5px;
+}
+
+#action-button button {
+    background-color: #3D4552; 
+    border: none; 
+    border-radius: 4px; 
+    width: 40px;
+    height: 40px;
+    overflow: hidden; 
+    align-items: center;
+    justify-content: center; 
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); 
+    cursor: pointer; 
+    user-select: none;
+    touch-action: manipulation; 
+    outline: none; 
+    display: flex; 
+    gap: 10px; 
+    color: #FFF;
+}
+
+#action-button button:active {
+    transform: scale(0.8);
+}
+
+#action-button button svg {
+    height: 100%; 
+    width: auto;
+    margin: 0 10px;
+}
+
+
+
+/* ===== INFORMATION BOX ===== */
+
+#search {max-height: 400px; background-color: #22262A; border-top-left-radius: 12px; border-top-right-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); padding: 16px; position: fixed; bottom: 0; width: 100%; z-index: 9999; height: 25%;}
+
+#search button svg {
+    height: 100%; 
+    width: auto;
+}
+
+.search-form {
+    display: flex;
+    margin-bottom: 8px;
+    background: #303841;
+    border-radius: 8px;
+}
+
+.search-form:has(input:focus) {
+    background: #3D4552;
+}
+
+.search-input {
+    flex: 1;
+    padding: 10px 15px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #FFF;
+    font-size: 16px;
+    line-height: 100%;
+}
+
+.search-input:focus {
+    border-color: #0866FF;
+}
+
+.search-button {
+    padding: 10px 0;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    height: 38px;
+    width: 38px;
+}
+
+.search-button .clear {
+    display: none;
+}
+
+.clear-button svg {
+    display: none;
+}
+
+.clear-button .clear {
+    display: inline;
+}
+
+
+.search-results {
+    max-height: 250px;
+    margin-bottom: 15px;
+    overflow-y: auto;
+    scrollbar-color: #1C2733 #2D384C; 
+    scrollbar-width: thin;
+}
+
+.search-result-item {
+    padding: 10px 8px;
+    cursor: pointer;
+    background: transparent;
+    border: none; 
+    border-bottom: 1px solid #565E6B;
+    text-align: left;
+    display: block;
+    width: 100%;
+}
+
+.search-result-item:hover {
+    background-color: #1C2733;
+}
+
+.search-result-item:active {
+    transform: scale(0.98);
+}
+
+.result-name {
+    font-weight: bold;
+    font-size: 14px;
+    color: #FFF;
+    margin-bottom: 5px;
+}
+
+.result-address {
+    font-size: 12px;
+    color: #FFF;
+    line-height: 1.3;
+}
+
+.result-time {
+    font-size: 11px;
+    color: #999;
+    margin-bottom: 8px;
+}
+
+.btn_router * {
+    pointer-events: none;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #FFF;
+    font-size: 14px;
+}
+
+.no-results {
+    text-align: center;
+    padding: 20px;
+    color: #999;
+    font-size: 14px;
+}
+
+
+/* ===== LOADING STATES ===== */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #0866FF;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#noti-box {position: fixed; top: 5%; left: 50%; z-index: 9999; min-width: 220px; text-align: center; color: #FFF; background: linear-gradient(135deg, #4A90E2, #357ABD); border-radius: 8px; padding: 10px 20px; height: 40px; line-height: 19px; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; transform: translate(-50%, 0); transition: top 0.8s ease; max-width: 100%;}
+#noti-box:empty {top: -300px}
+
+/* ===== END OF CSS ===== */
+
+#mute-button svg {margin-right: 14px}
+#mute-button.active {position: relative;}
+#mute-button:after {content: ')'; position: absolute; top: 14px; right: 11px; color: #FFF; font-size: 9px;}
+#mute-button.active:after {content: 'x'; position: absolute; top: 11px; right: 8px; color: #FFF; font-size: 13px;}
+
+#traffic-signals {position: fixed; top: 15px; right: 98px; background-color: rgba(0, 0, 0, 0.5); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-radius: 12px; padding: 5px 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); display: flex ; gap: 5px; align-items: center;}
+#traffic-signals .icon {
+    background: #000;
+    width: 30px;
+    height: 30px;
+    border-radius: 30px;
+    padding: 5px;
+    border: 3px solid #EE0204;
+}
+
+
+#traffic-signals .number {
+    height: 20px;
+    font-family: "Michroma", sans-serif;
+    color: #FFF;
+    font-size: 20px; line-height: 20px;
+}
+
+@media (prefers-contrast: high) {
+
+}

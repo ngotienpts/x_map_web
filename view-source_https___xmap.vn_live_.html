@@ -1,0 +1,75 @@
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xmap</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Explus CMS">
+    <link rel="apple-touch-icon" href="/lib/icons/icon-192.png">
+
+    <link href="/lib/maplibre-gl.css" rel="stylesheet" />
+    <script src="/lib/maplibre-gl.js"></script>
+    <!-- <script src="/lib/pmtiles.js"></script> -->
+
+</head>
+<body>
+    <div id="map"></div>
+
+
+    <!-- Controls -->
+    <div class="controls">
+        <button id="locate-button" title="Định vị">
+            <svg width="668" height="668" viewBox="0 0 668 668" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M0.666992 334C0.666992 346.843 11.079 357.257 23.9227 357.257H87.014C98.0263 475.697 192.305 569.973 310.744 580.987V644.077C310.744 656.92 321.157 667.333 334 667.333C346.844 667.333 357.257 656.92 357.257 644.077V580.987C475.697 569.973 569.974 475.697 580.987 357.257H644.077C656.92 357.257 667.334 346.843 667.334 334C667.334 321.157 656.92 310.743 644.077 310.743H580.987C569.974 192.305 475.697 98.026 357.257 87.0136V23.9223C357.257 11.0786 346.844 0.666626 334 0.666626C321.157 0.666626 310.744 11.0786 310.744 23.9223V87.0136C192.305 98.026 98.0263 192.305 87.014 310.743H23.9227C11.079 310.743 0.666992 321.157 0.666992 334ZM217.721 334C217.721 269.78 269.78 217.721 334 217.721C398.22 217.721 450.28 269.78 450.28 334C450.28 398.22 398.22 450.28 334 450.28C269.78 450.28 217.721 398.22 217.721 334Z" fill="white"/>
+            <path d="M264.232 334C264.232 295.47 295.47 264.233 334 264.233C372.53 264.233 403.766 295.47 403.766 334C403.766 372.53 372.53 403.767 334 403.767C295.47 403.767 264.232 372.53 264.232 334Z" fill="white"/>
+            </svg>
+        </button>
+
+        <button id="rotate-button" title="Xoay về Bắc">
+            <svg width="388" height="358" viewBox="0 0 388 358" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0.652399 349.803L189.61 3.3799C191.507 -0.0934311 196.493 -0.0934311 198.39 3.3799L387.347 349.803C389.59 353.917 385.453 358.58 381.1 356.84L229.9 296.36C228.303 295.72 227.147 294.307 226.84 292.613L198.92 139.057C197.923 133.583 190.077 133.583 189.08 139.057L161.16 292.613C160.853 294.307 159.697 295.72 158.1 296.36L6.89906 356.84C2.54806 358.58 -1.59127 353.917 0.652399 349.803Z" fill="white"></path>
+            </svg>
+        </button>
+    </div>
+
+    <div id="noti-box"></div>
+
+    <!-- Search Box -->
+    <div id="search" style="display:none;">
+        <form id="search-form" class="search-form">
+            <input type="text" id="search-input" class="search-input" placeholder="Tìm kiếm địa điểm..." autocomplete="off">
+            <button type="button" id="search-button" class="search-button">
+                <svg width="18" height="18" viewBox="0 0 568 568" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M234 450.667C353.662 450.667 450.667 353.662 450.667 234C450.667 114.338 353.662 17.3333 234 17.3333C114.338 17.3333 17.3335 114.338 17.3335 234C17.3335 353.662 114.338 450.667 234 450.667Z" stroke="white" stroke-width="33.3333" stroke-linejoin="round"></path>
+                    <path d="M538.88 562.453C545.39 568.96 555.943 568.96 562.453 562.453C568.96 555.943 568.96 545.39 562.453 538.88L538.88 562.453ZM562.453 538.88L395.787 372.213L372.213 395.787L538.88 562.453L562.453 538.88Z" fill="white"></path>
+                </svg>
+                <svg class="clear" width="18" height="18" viewBox="0 0 37 37" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.23689 1.52954L35.4709 34.7636M34.7638 1.52954L1.52979 34.7636" stroke="white" stroke-width="4"></path>
+                </svg>
+            </button>
+        </form>
+
+        <div id="search-results" class="search-results" style="display: none;"></div>
+    </div>
+
+    <!-- Exit Button (appears during navigation) -->
+    <div id="action-button">
+        <button id="btn-open-search" class="hide-navigating">
+            <svg width="668" height="668" viewBox="0 0 668 668" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M500.667 500.667L634 634M567.333 300.667C567.333 447.943 447.943 567.333 300.667 567.333C153.391 567.333 34 447.943 34 300.667C34 153.391 153.391 34 300.667 34C447.943 34 567.333 153.391 567.333 300.667Z" stroke="white" stroke-width="66.6667" stroke-linecap="round"/>
+            </svg>
+        </button>
+    </div>
+
+    <script src="voice.js"></script>
+    <script src="main.js"></script>
+    <!-- <script src="complete_main_js.js"></script> -->
+    <script src="route_simulator.js"></script>
+    
+    
+</body>
+</html>
