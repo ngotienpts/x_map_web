@@ -42,11 +42,6 @@ async function updateConfigFromJson(url) {
 
       if (window.map) {
         map.setCenter([lon, lat]);
-        
-        // Cập nhật location marker nếu gpsTracker đã được khởi tạo
-        if (window.gpsTracker && gpsTracker.updateLocationMarker) {
-          gpsTracker.updateLocationMarker(lat, lon);
-        }
       }
     } else {
       console.error("Không tìm thấy dữ liệu lat/lon trong JSON");
@@ -251,14 +246,9 @@ class GPSTracker {
 
     // Phương thức tạo location marker
     createLocationMarker() {
-    // Kiểm tra và xóa marker cũ nếu có
-        if (this.locationMarker) {
-            this.locationMarker.remove();
-        }
-
         this.locationMarker = new maplibregl.Marker({ 
             element: this.locationIcon,
-            anchor: 'bottom'
+            anchor: 'bottom' // Anchor ở bottom để icon trỏ đúng vị trí
         })
         .setLngLat([CONFIG.map.initialLon, CONFIG.map.initialLat])
         .addTo(map);
@@ -280,19 +270,12 @@ class GPSTracker {
 
     // Phương thức cập nhật vị trí location marker
     updateLocationMarker(lat, lon) {
-    if (this.locationMarker) {
-        this.locationMarker.setLngLat([lon, lat]);
-        CONFIG.map.initialLat = lat;
-        CONFIG.map.initialLon = lon;
-        console.log(`Location marker cập nhật tới: ${lat}, ${lon}`);
-    } else {
-        // Nếu chưa có marker, tạo mới
-        CONFIG.map.initialLat = lat;
-        CONFIG.map.initialLon = lon;
-        this.createLocationMarker();
-        console.log(`Location marker được tạo tại: ${lat}, ${lon}`);
+        if (this.locationMarker) {
+            this.locationMarker.setLngLat([lon, lat]);
+            CONFIG.map.initialLat = lat;
+            CONFIG.map.initialLon = lon;
+        }
     }
-}
 
     // Phương thức ẩn/hiện location marker
     toggleLocationMarker(visible = true) {
@@ -1375,20 +1358,13 @@ async function initializeApp() {
         uiManager = new UIManager();
 
         gpsTracker.initialize();
-        
-        // Đợi một chút để map được render hoàn toàn trước khi tạo location marker
-        setTimeout(() => {
-            if (CONFIG.map.initialLat && CONFIG.map.initialLon) {
-                gpsTracker.createLocationMarker();
-            }
-        }, 500);
-        
         gpsTracker.start();
         searchManager = new SearchManager();
         voiceAudio = new VoiceAudio();
 
         searchManager.initSearchHandlers();
         navigationManager.initHandlers();
+        
         
         State.system.isInitialized = true;
         console.log('✅ Consolidated Navigation System initialized successfully');
