@@ -11,67 +11,18 @@ const State = {
     }
 };
 
-// Cấu hình mặc định
 const CONFIG = {
-  map: {
-    initialLat: 20.978009,
-    initialLon: 105.8121463,
-    zoom: 16
-  },
-  gps: {
-    enableHighAccuracy: true,
-    timeout: 5000,
-    maximumAge: 0
-  }
-};
-
-// Hàm cập nhật CONFIG từ JSON
-async function updateConfigFromJson(url) {
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (data.elements && data.elements.length > 0) {
-      const lat = data.elements[0].lat;
-      const lon = data.elements[0].lon;
-
-      CONFIG.map.initialLat = lat;
-      CONFIG.map.initialLon = lon;
-
-      console.log("CONFIG sau khi cập nhật từ JSON:", CONFIG);
-
-      if (window.map) {
-        map.setCenter([lon, lat]);
-      }
-    } else {
-      console.error("Không tìm thấy dữ liệu lat/lon trong JSON");
+    map: {
+        initialLat: 20.978009,
+        initialLon: 105.8121463,
+        zoom: 16
+    },
+    gps: {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
     }
-  } catch (err) {
-    console.error("Lỗi khi lấy JSON:", err);
-  }
-}
-
-// ---- PHẦN KHỞI TẠO ----
-(function initConfig() {
-  const params = new URLSearchParams(window.location.search);
-  const marker = params.get("marker");
-
-  if (marker) {
-    // Nếu có marker thì dùng marker
-    const [lat, lon] = marker.split(",").map(Number);
-    CONFIG.map.initialLat = lat;
-    CONFIG.map.initialLon = lon;
-
-    console.log("CONFIG khởi tạo từ marker:", CONFIG);
-  } else {
-    // Nếu không có marker thì gọi API JSON
-    updateConfigFromJson("https://api.xmap.vn/node/12606538038.json");
-  }
-})();
-
-
-
-
+};
 
 let map;
 let currentBearing = 0;
@@ -86,24 +37,13 @@ class GPSTracker {
     constructor() {
         this.autoCenterTimeout = true;
         this.userMarker = null;
-        this.locationMarker = null; // Thêm location marker
 
-        // Icon xe hơi (marker người dùng)
         this.carIcon = document.createElement('div');
         this.carIcon.innerHTML = `<svg width="45" height="43" viewBox="0 0 67 67" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="33.5" cy="33.5" r="33.5" fill="#2D6AE9" fill-opacity="0.3"/>
         <path d="M33.5 39.5714L11 49L33.5 7L56 49L33.5 39.5714Z" fill="white"/>
         </svg>`;
         this.carIcon.id = 'car-icon';
-
-        // Icon location marker
-        this.locationIcon = document.createElement('div');
-        this.locationIcon.innerHTML = `<svg width="40" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#FF5722"/>
-        <circle cx="12" cy="9" r="2.5" fill="white"/>
-        </svg>`;
-        this.locationIcon.id = 'location-icon';
-        this.locationIcon.style.cursor = 'pointer';
     }
 
     initialize() {
@@ -176,6 +116,8 @@ class GPSTracker {
                 }
               },
 
+
+
         {
             id: "center-line",
             type: "line",
@@ -220,68 +162,27 @@ class GPSTracker {
         {
             id: "landuse-grass",
             type: "fill",
-            source: "vietnam",
-            "source-layer": "landuse",
+            source: "vietnam", // đúng với source bạn đang dùng
+            "source-layer": "landuse", // đúng với layer trong ảnh
             filter: ["==", ["get", "class"], "grass"],
             paint: {
-                "fill-color": "#0C4321",
-                "fill-opacity": 0.6
+                "fill-color": "#0C4321",  // Màu xanh cỏ, bạn có thể đổi tùy ý
+                "fill-opacity": 0.6       // Độ trong suốt tùy chỉnh
             }
         },
+
 
             ]
           },
           center:[CONFIG.map.initialLon,CONFIG.map.initialLat], zoom:CONFIG.map.zoom, pitch:0, bearing:State.user.bearing});
 
         // Bắt đầu kéo
-        map.on('dragstart', this.handleUserInteraction.bind(this));
-        map.on('drag', this.handleUserInteraction.bind(this));
+        map.on('dragstart', this.handleUserInteraction);
+        map.on('drag', this.handleUserInteraction);
+        //map.on('zoomstart', this.handleUserInteraction);
 
-        // Tạo user marker (xe hơi)
+
         this.userMarker = new maplibregl.Marker({ element: this.carIcon }).setLngLat([State.user.lon, State.user.lat]).addTo(map);
-        
-        // Tạo location marker tại vị trí CONFIG
-        this.createLocationMarker();
-    }
-
-    // Phương thức tạo location marker
-    createLocationMarker() {
-        this.locationMarker = new maplibregl.Marker({ 
-            element: this.locationIcon,
-            anchor: 'bottom' // Anchor ở bottom để icon trỏ đúng vị trí
-        })
-        .setLngLat([CONFIG.map.initialLon, CONFIG.map.initialLat])
-        .addTo(map);
-
-        // Thêm sự kiện click vào location marker
-        this.locationIcon.addEventListener('click', () => {
-            this.flyToLocation();
-        });
-    }
-
-    // Phương thức bay đến vị trí location marker
-    flyToLocation() {
-        map.flyTo({
-            center: [CONFIG.map.initialLon, CONFIG.map.initialLat],
-            zoom: 17,
-            duration: 2000
-        });
-    }
-
-    // Phương thức cập nhật vị trí location marker
-    updateLocationMarker(lat, lon) {
-        if (this.locationMarker) {
-            this.locationMarker.setLngLat([lon, lat]);
-            CONFIG.map.initialLat = lat;
-            CONFIG.map.initialLon = lon;
-        }
-    }
-
-    // Phương thức ẩn/hiện location marker
-    toggleLocationMarker(visible = true) {
-        if (this.locationMarker) {
-            this.locationIcon.style.display = visible ? 'block' : 'none';
-        }
     }
 
     handleUserInteraction() {
@@ -337,9 +238,16 @@ class GPSTracker {
                 this.userMarker.setLngLat([State.user.lon, State.user.lat]);
             }
             else {
+                //this.userMarker.setLngLat([lng, lat]); // new
                 this.animateTo(lastPos, newPos, 1000);
             }
         } else {
+            /*
+            this.userMarker.setLngLat([lng, lat]);
+            const center = utils.calculateOffsetCenter(lat, lng, 0, -80);
+            currentMapBearing = 0; // Initialize bearing
+            map.jumpTo({ center: center, zoom: 18, pitch: 60, bearing: 0 });
+            */
             this.userMarker.setLngLat([lng, lat]);
 
             // Lấy pixel từ lat/lng
@@ -361,6 +269,7 @@ class GPSTracker {
             });
         }
 
+        
         lastPos = newPos;
 
         if (position.coords.speed !== null && position.coords.speed !== undefined) {
@@ -374,6 +283,7 @@ class GPSTracker {
             navigationManager.drawRoute();
             navigationManager.updateNavigationPanel();
         }
+
     }
 
     animateTo(from, to, duration = 1000) {
@@ -388,6 +298,37 @@ class GPSTracker {
         
         const startBearing = currentMapBearing;
 
+        
+        /*function step(timestamp) {
+            const progress = Math.min((timestamp - start) / duration, 1);
+            
+            // Smooth easing function (ease-in-out)
+            const easeProgress = progress < 0.5 ? 
+                2 * progress * progress : 
+                1 - Math.pow(-2 * progress + 2, 2) / 2;
+            
+            const lat = from.lat + (to.lat - from.lat) * easeProgress;
+            const lng = from.lng + (to.lng - from.lng) * easeProgress;
+            
+            // Smooth bearing interpolation
+            const currentBearing = startBearing + bearingDiff * easeProgress;
+            currentMapBearing = (currentBearing + 360) % 360;
+
+            gpsTracker.userMarker.setLngLat([lng, lat]);
+            gpsTracker.carIcon.style.transform = `translate(-50%, -100%) rotate(${currentMapBearing}deg)`;
+
+            const camCenter = utils.calculateOffsetCenter(lat, lng, currentMapBearing, -80);
+        
+            // Use easeTo with longer duration for smoother map rotation
+            map.easeTo({
+                center: camCenter,
+                bearing: currentMapBearing,
+                pitch: 60,//
+                duration: 100 // Smooth map animation
+            });
+
+            if (progress < 1) requestAnimationFrame(step);
+        }*/
         function step(timestamp) {
             const progress = Math.min((timestamp - start) / duration, 1);
             

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <title>Vẽ đường theo nodes</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css' />
+    <script src='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js'></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        html, body, #map { height: 100%; width: 100%; }
+        
+        .info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            max-width: 300px;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            z-index: 2000;
+        }
+        
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #f44336;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            z-index: 2000;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+<div id="loading" class="loading">
+    Đang tải bản đồ và lấy thông tin nodes...
+</div>
+
+<div id="map"></div>
+
+<div class="info" id="info" style="display: none;">
+    <strong>Thông tin:</strong><br>
+    <span id="route-info">Đang xử lý...</span>
+</div>
+
+<script>
+    console.log('Bắt đầu khởi tạo bản đồ...');
+    
+    // Lấy nodes từ URL
+    function getNodesFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const nodesParam = urlParams.get('nodes');
+        
+        if (!nodesParam) {
+            throw new Error('Không tìm thấy tham số nodes trong URL. URL phải có dạng: ?nodes=node1,node2');
+        }
+        
+        const nodes = nodesParam.split(',').map(node => node.trim()).filter(node => node);
+        
+        if (nodes.length < 2) {
+            throw new Error('Cần ít nhất 2 nodes để vẽ đường. Tìm thấy: ' + nodes.length + ' nodes');
+        }
+        
+        console.log('Nodes từ URL:', nodes);
+        return nodes;
+    }
+    
+    // Lấy thông tin node từ Overpass API
+    async function getNodeInfo(nodeId) {
+        console.log(`Đang lấy thông tin node ${nodeId}...`);
+        
+        const query = `[out:json][timeout:25];node(${nodeId});out;`;
+        
+        console.log('Overpass query:', query);
+        
+        try {
+            const response = await fetch('https://overpass-api.de/api/interpreter', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain'
+                },
+                body: query
+            });
+            
+            console.log('Response status:', response.status, response.statusText);
+            
+            if (!response.ok) {
+                throw new Error(`Lỗi khi lấy thông tin node ${nodeId}: ${response.status} ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            console.log(`Data cho node ${nodeId}:`, data);
+            
+            if (!data.elements || data.elements.length === 0) {
+                throw new Error(`Không tìm thấy node ${nodeId} trong cơ sở dữ liệu OSM`);
+            }
+            
+            const node = data.elements[0];
+            const nodeInfo = {
+                id: node.id,
+                lat: node.lat,
+                lon: node.lon,
+                tags: node.tags || {}
+            };
+            
+            console.log(`Thông tin node ${nodeId}:`, nodeInfo);
+            return nodeInfo;
+            
+        } catch (error) {
+            console.error(`Lỗi khi xử lý node ${nodeId}:`, error);
+            throw error;
+        }
+    }
+    
+    // Hiển thị lỗi
+    function showError(message) {
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) {
+            loadingEl.innerHTML = `<div class="error">${message}</div>`;
+        }
+        console.error(message);
+    }
+    
+    // Khởi tạo bản đồ
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            'version': 8,
+            'sources': {
+                'osm': {
+                    'type': 'raster',
+                    'tiles': [
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+                    ],
+                    'tileSize': 256,
+                    'attribution': '© OpenStreetMap contributors'
+                }
+            },
+            'layers': [
+                {
+                    'id': 'osm',
+                    'type': 'raster',
+                    'source': 'osm'
+                }
+            ]
+        },
+        center: [105.8, 21.0], // Tọa độ mặc định (Hà Nội)
+        zoom: 10
+    });
+
+    // Xử lý chính
+    async function main() {
+        try {
+            console.log('=== BẮT ĐẦU XỬ LÝ CHÍNH ===');
+            
+            // Lấy nodes từ URL
+            const nodeIds = getNodesFromURL();
+            console.log('Node IDs từ URL:', nodeIds);
+            
+            // Cập nhật trạng thái loading
+            document.getElementById('loading').innerHTML = `
+                <div>Đang lấy thông tin ${nodeIds.length} nodes...<br>
+                <small>Nodes: ${nodeIds.join(', ')}</small></div>
+            `;
+            
+            // Lấy thông tin các nodes
+            console.log('Đang lấy thông tin nodes...');
+            const nodes = [];
+            
+            for (let i = 0; i < nodeIds.length; i++) {
+                try {
+                    document.getElementById('loading').innerHTML = `
+                        <div>Đang lấy node ${i + 1}/${nodeIds.length}...<br>
+                        <small>Node ID: ${nodeIds[i]}</small></div>
+                    `;
+                    
+                    const node = await getNodeInfo(nodeIds[i]);
+                    nodes.push(node);
+                    console.log(`✓ Đã lấy được node ${nodeIds[i]}:`, node);
+                } catch (error) {
+                    console.error(`✗ Lỗi khi lấy node ${nodeIds[i]}:`, error);
+                    throw new Error(`Lỗi khi lấy node ${nodeIds[i]}: ${error.message}`);
+                }
+            }
+            
+            console.log('=== TẤT CẢ NODES ĐÃ ĐƯỢC LẤY ===');
+            console.log('Danh sách nodes:', nodes);
+            
+            // Kiểm tra tọa độ hợp lệ
+            const validNodes = nodes.filter(node => 
+                node.lat && node.lon && 
+                !isNaN(node.lat) && !isNaN(node.lon) &&
+                node.lat >= -90 && node.lat <= 90 &&
+                node.lon >= -180 && node.lon <= 180
+            );
+            
+            if (validNodes.length === 0) {
+                throw new Error('Không có node nào có tọa độ hợp lệ');
+            }
+            
+            if (validNodes.length !== nodes.length) {
+                console.warn(`Chỉ có ${validNodes.length}/${nodes.length} nodes có tọa độ hợp lệ`);
+            }
+            
+            // Tạo đường nối các nodes
+            const coordinates = validNodes.map(node => [parseFloat(node.lon), parseFloat(node.lat)]);
+            console.log('Tọa độ để vẽ đường:', coordinates);
+            
+            // Tạo GeoJSON data
+            const routeData = {
+                'type': 'FeatureCollection',
+                'features': [{
+                    'type': 'Feature',
+                    'properties': {
+                        'name': 'Route từ nodes'
+                    },
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': coordinates
+                    }
+                }]
+            };
+            
+            const markersData = {
+                'type': 'FeatureCollection',
+                'features': validNodes.map((node, index) => ({
+                    'type': 'Feature',
+                    'properties': {
+                        'name': node.tags.name || `Node ${node.id}`,
+                        'nodeId': node.id,
+                        'type': index === 0 ? 'start' : (index === validNodes.length - 1 ? 'end' : 'middle')
+                    },
+                    'geometry': {
+                        'type': 'Point',
+                        'coordinates': [parseFloat(node.lon), parseFloat(node.lat)]
+                    }
+                }))
+            };
+            
+            console.log('GeoJSON route data:', routeData);
+            console.log('GeoJSON markers data:', markersData);
+
+            // Đợi bản đồ load xong
+            map.on('load', () => {
+                console.log('=== BẢN ĐỒ ĐÃ LOAD XONG ===');
+                
+                try {
+                    // Ẩn loading
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('info').style.display = 'block';
+                    
+                    // Thêm sources
+                    console.log('Đang thêm route source...');
+                    map.addSource('route', {
+                        'type': 'geojson',
+                        'data': routeData
+                    });
+                    
+                    console.log('Đang thêm markers source...');
+                    map.addSource('markers', {
+                        'type': 'geojson',
+                        'data': markersData
+                    });
+
+                    // Thêm layer đường
+                    console.log('Đang thêm route layer...');
+                    map.addLayer({
+                        'id': 'route-layer',
+                        'type': 'line',
+                        'source': 'route',
+                        'layout': {
+                            'line-cap': 'round',
+                            'line-join': 'round'
+                        },
+                        'paint': {
+                            'line-color': '#FF6B6B',
+                            'line-width': 6,
+                            'line-opacity': 0.9
+                        }
+                    });
+
+                    // Thêm markers
+                    console.log('Đang thêm markers layer...');
+                    map.addLayer({
+                        'id': 'markers-layer',
+                        'type': 'circle',
+                        'source': 'markers',
+                        'paint': {
+                            'circle-radius': [
+                                'case',
+                                ['==', ['get', 'type'], 'start'], 15,
+                                ['==', ['get', 'type'], 'end'], 15,
+                                10
+                            ],
+                            'circle-color': [
+                                'case',
+                                ['==', ['get', 'type'], 'start'], '#4CAF50',
+                                ['==', ['get', 'type'], 'end'], '#FF4444',
+                                '#FFA500'
+                            ],
+                            'circle-stroke-color': '#ffffff',
+                            'circle-stroke-width': 3
+                        }
+                    });
+
+                    // Thêm labels cho markers
+                    console.log('Đang thêm labels layer...');
+                    map.addLayer({
+                        'id': 'markers-labels',
+                        'type': 'symbol',
+                        'source': 'markers',
+                        'layout': {
+                            'text-field': [
+                                'format',
+                                ['get', 'name'], {},
+                                '\n', {},
+                                ['concat', 'ID: ', ['get', 'nodeId']], { 'font-scale': 0.8 }
+                            ],
+                            'text-font': ['Open Sans Regular'],
+                            'text-offset': [0, 2.5],
+                            'text-anchor': 'top',
+                            'text-size': 12
+                        },
+                        'paint': {
+                            'text-color': '#000000',
+                            'text-halo-color': '#ffffff',
+                            'text-halo-width': 2
+                        }
+                    });
+
+                    // Fit view để hiển thị toàn bộ đường
+                    console.log('Đang fit bounds...');
+                    const bounds = new maplibregl.LngLatBounds();
+                    coordinates.forEach(coord => bounds.extend(coord));
+                    
+                    map.fitBounds(bounds, { 
+                        padding: 80,
+                        maxZoom: 16
+                    });
+                    
+                    // Cập nhật thông tin
+                    const startNode = validNodes[0];
+                    const endNode = validNodes[validNodes.length - 1];
+                    const distance = calculateDistance(startNode.lat, startNode.lon, endNode.lat, endNode.lon);
+                    
+                    document.getElementById('route-info').innerHTML = `
+                        <strong>Tuyến đường:</strong><br>
+                        ${startNode.tags.name || `Node ${startNode.id}`} → ${endNode.tags.name || `Node ${endNode.id}`}<br>
+                        <strong>Số điểm:</strong> ${validNodes.length} nodes<br>
+                        <strong>Khoảng cách thẳng:</strong> ~${distance.toFixed(2)} km<br>
+                        <strong>Tọa độ đầu:</strong> ${startNode.lat.toFixed(6)}, ${startNode.lon.toFixed(6)}<br>
+                        <strong>Tọa độ cuối:</strong> ${endNode.lat.toFixed(6)}, ${endNode.lon.toFixed(6)}
+                    `;
+                    
+                    console.log('=== VẼ ĐƯỜNG THÀNH CÔNG ===');
+                    
+                } catch (error) {
+                    console.error('Lỗi khi thêm layers:', error);
+                    showError('Lỗi khi vẽ đường: ' + error.message);
+                }
+            });
+            
+        } catch (error) {
+            console.error('=== LỖI TRONG XỬ LÝ CHÍNH ===', error);
+            showError(error.message);
+        }
+    }
+    
+    // Tính khoảng cách giữa 2 điểm (km)
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Bán kính Trái Đất (km)
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // Xử lý lỗi
+    map.on('error', (e) => {
+        console.error('Map error:', e);
+        showError('Lỗi khi tải bản đồ: ' + e.error.message);
+    });
+    
+    // Bắt đầu xử lý
+    main();
+    
+    console.log('Script đã được thiết lập hoàn tất');
+</script>
+</body>
+</html>
