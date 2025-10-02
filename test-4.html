@@ -64,8 +64,115 @@
         </button>
     </div>
 
-    <script src="main_3.js"></script>
-  
-   
+  <script>
+   // Cấu hình bản đồ
+const MAP_CONFIG = {
+    initialCenter: [105.8121463, 20.978009], // [lon, lat]
+    initialZoom: 16,
+    routeColor: '#ed6498',
+    routeWidth: 5,
+    markerColor: '#FF0000',
+    endPointMarkerColor: '#00BFFF' // Màu mới cho marker điểm cuối
+};
+
+// Hàm mới để tính toán và lấy đường đi từ API OSRM
+async function fetchRouteData(startCoords, endCoords) {
+    // API OSRM yêu cầu [lon, lat]
+    const url = `https://router.project-osrm.org/route/v1/driving/${startCoords[0]},${startCoords[1]};${endCoords[0]},${endCoords[1]}?overview=full&geometries=geojson`;
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        
+        if (data.routes && data.routes.length > 0) {
+            const route = data.routes[0];
+            const distance = route.distance / 1000; // Khoảng cách tính bằng km
+            console.log(`Đã tìm thấy tuyến đường. Tổng quãng đường: ${distance.toFixed(2)} km`);
+            return route.geometry.coordinates; // Trả về mảng tọa độ
+        }
+        console.warn('Không tìm thấy tuyến đường.');
+        return null;
+    } catch (error) {
+        console.error("Lỗi khi lấy dữ liệu định tuyến:", error);
+        return null;
+    }
+}
+
+// Khởi tạo và xử lý bản đồ
+async function initMap() {
+    const params = new URLSearchParams(window.location.search);
+    const startLat = params.get('start_lat');
+    const startLon = params.get('start_lon');
+    const endLat = params.get('end_lat');
+    const endLon = params.get('end_lon');
+
+    let mapCenter = MAP_CONFIG.initialCenter;
+    let mapZoom = MAP_CONFIG.initialZoom;
+    let routeCoords = null;
+    
+    // Chỉ gọi API khi có đủ tọa độ
+    if (startLat && startLon && endLat && endLon) {
+        // Tạo các mảng tọa độ với thứ tự [lon, lat]
+        const startPoint = [parseFloat(startLon), parseFloat(startLat)];
+        const endPoint = [parseFloat(endLon), parseFloat(endLat)];
+        
+        mapCenter = startPoint;
+        mapZoom = 17;
+        
+        routeCoords = await fetchRouteData(startPoint, endPoint);
+    }
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://xmap.vn/lib/dark-vietnam.json',
+        center: mapCenter,
+        zoom: mapZoom
+    });
+
+    map.on('load', () => {
+        if (routeCoords) {
+            map.addSource('route', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': routeCoords
+                    }
+                }
+            });
+
+            map.addLayer({
+                'id': 'route-line',
+                'type': 'line',
+                'source': 'route',
+                'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                'paint': {
+                    'line-color': MAP_CONFIG.routeColor,
+                    'line-width': MAP_CONFIG.routeWidth
+                }
+            });
+
+            const startPoint = routeCoords[0];
+            const endPoint = routeCoords[routeCoords.length - 1];
+            
+            new maplibregl.Marker({ color: MAP_CONFIG.markerColor })
+                .setLngLat(startPoint)
+                .addTo(map);
+
+            new maplibregl.Marker({ color: MAP_CONFIG.endPointMarkerColor })
+                .setLngLat(endPoint)
+                .addTo(map);
+
+            const bounds = new maplibregl.LngLatBounds();
+            routeCoords.forEach(coord => bounds.extend(coord));
+            map.fitBounds(bounds, { padding: 50 });
+        }
+    });
+}
+
+initMap();
+  </script> 
 </body>
 </html>

@@ -1,376 +1,171 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
-    <title>Đường đi Luxembourg - Hà Nội</title>
+    <title>Draw a line from A to B</title>
     <meta charset='utf-8'>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css' />
-    <script src='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js'></script>
+    <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css' />
+    <script src='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js'></script>
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        html, body, #map { height: 100%; width: 100%; }
-        
-        .controls {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            z-index: 1000;
-            max-width: 250px;
-        }
-        
-        button {
-            margin: 5px 0;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            width: 100%;
-        }
-        
-        #animate {
-            background: #4CAF50;
-            color: white;
-        }
-        
-        #animate:hover {
-            background: #45a049;
-        }
-        
-        #animate.animating {
-            background: #f44336;
-        }
-        
-        #reset {
-            background: #2196F3;
-            color: white;
-        }
-        
-        #reset:hover {
-            background: #1976D2;
-        }
-        
-        .info {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 13px;
-            max-width: 300px;
-        }
-        
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            z-index: 2000;
-        }
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
     </style>
 </head>
 <body>
-<div id="loading" class="loading">
-    Đang tải bản đồ...
-</div>
-
 <div id="map"></div>
 
-<div class="controls" style="display: none;" id="controls">
-    <div style="margin-bottom: 10px; font-weight: bold;">Điều khiển</div>
-    <button id="animate">Bắt đầu Animation</button>
-    <button id="reset">Đặt lại</button>
-</div>
-
-<div class="info">
-    <strong>Tuyến đường:</strong><br>
-    🇱🇺 Luxembourg → 🇻🇳 Hà Nội<br>
-    <strong>Khoảng cách:</strong> ~9,500 km
-</div>
-
 <script>
-    console.log('Bắt đầu khởi tạo bản đồ...');
-    
-    // Tọa độ điểm đầu và điểm cuối (đảm bảo đúng định dạng [longitude, latitude])
-    const startPoint = [6.9154974, 49.1831625]; // Luxembourg
-    const endPoint = [105.7803042, 21.0338925]; // Hà Nội
-    
-    console.log('Điểm bắt đầu:', startPoint);
-    console.log('Điểm kết thúc:', endPoint);
+   // Cấu hình chung
+const CONFIG = {
+    map: {
+        initialLat: 20.978009,
+        initialLon: 105.8121463,
+        zoom: 16
+    },
+    marker: {
+        color: '#FF0000'
+    }
+};
+
+// Hàm lấy tọa độ từ các node ID
+async function fetchNodeData(nodeIds) {
+    const fetchPromises = nodeIds.map(async (nodeId) => {
+        const jsonUrl = `https://api.xmap.vn/node/${nodeId}.json`;
+        try {
+            const response = await fetch(jsonUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            if (data.elements && data.elements.length > 0) {
+                const node = data.elements[0];
+                return [node.lon, node.lat];
+            }
+        } catch (error) {
+            console.error(`Lỗi khi tải dữ liệu cho node ${nodeId}:`, error);
+            return null;
+        }
+    });
+
+    const results = await Promise.all(fetchPromises);
+    return results.filter(coords => coords !== null);
+}
+
+// Hàm xử lý trường hợp URL có tham số 'nodes'
+async function handleNodesURL(map) {
+    const url = new URL(window.location.href);
+    const nodesParam = url.searchParams.get('nodes');
+    const nodeIds = nodesParam ? nodesParam.split(',') : [];
+
+    const realRouteCoordinates = await fetchNodeData(nodeIds);
+    console.log('Tọa độ các node đã lấy từ API:', realRouteCoordinates);
+
+    if (realRouteCoordinates.length < 2) {
+        console.warn('Không đủ tọa độ để vẽ đường đi.');
+        return;
+    }
+
+    // Lấy tọa độ của node đầu tiên để đặt center ban đầu
+    const firstNodeCoords = realRouteCoordinates[0];
+    map.setCenter(firstNodeCoords);
+
+    map.addSource('route', {
+        'type': 'geojson',
+        'data': {
+            'type': 'Feature',
+            'properties': {},
+            'geometry': {
+                'type': 'LineString',
+                'coordinates': realRouteCoordinates
+            }
+        }
+    });
+
+    map.addLayer({
+        'id': 'route-line',
+        'type': 'line',
+        'source': 'route',
+        'layout': {
+            'line-join': 'round',
+            'line-cap': 'round'
+        },
+        'paint': {
+            'line-color': '#ed6498',
+            'line-width': 5,
+            'line-opacity': 0.8
+        }
+    });
+}
+
+// Hàm xử lý trường hợp URL có tham số 'marker'
+function handleMarkerURL(map) {
+    const params = new URLSearchParams(window.location.search);
+    const markerParam = params.get("marker");
+
+    if (markerParam) {
+        const coords = markerParam.split(",").map(Number);
+        if (coords.length === 2 && !coords.some(isNaN)) {
+            const [lat, lon] = coords;
+            map.setCenter([lon, lat]);
+            map.setZoom(CONFIG.map.zoom);
+
+            new maplibregl.Marker({
+                    color: CONFIG.marker.color
+                })
+                .setLngLat([lon, lat])
+                .addTo(map);
+        }
+    }
+}
+
+// Hàm khởi tạo ứng dụng chính
+async function initializeApp() {
+    const params = new URLSearchParams(window.location.search);
+    const hasNodesParam = params.has('nodes');
+    const hasMarkerParam = params.has('marker');
+    let initialCenter;
+    let initialZoom;
+
+    // Xác định tọa độ và zoom ban đầu dựa trên URL
+    if (hasMarkerParam) {
+        const markerParam = params.get("marker");
+        const coords = markerParam.split(",").map(Number);
+        if (coords.length === 2 && !coords.some(isNaN)) {
+            initialCenter = [coords[1], coords[0]];
+            initialZoom = CONFIG.map.zoom;
+        }
+    } else if (hasNodesParam) {
+        // Tạm thời để một center mặc định. Center thực sự sẽ được thiết lập sau khi lấy được node đầu tiên.
+        initialCenter = [CONFIG.map.initialLon, CONFIG.map.initialLat];
+        initialZoom = 13;
+    } else {
+        // Trường hợp không có tham số URL
+        initialCenter = [CONFIG.map.initialLon, CONFIG.map.initialLat];
+        initialZoom = CONFIG.map.zoom;
+    }
     
     // Khởi tạo bản đồ
     const map = new maplibregl.Map({
         container: 'map',
-        style: {
-            'version': 8,
-            'sources': {
-                'osm': {
-                    'type': 'raster',
-                    'tiles': [
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-                    ],
-                    'tileSize': 256,
-                    'attribution': '© OpenStreetMap contributors'
-                }
-            },
-            'layers': [
-                {
-                    'id': 'osm',
-                    'type': 'raster',
-                    'source': 'osm'
-                }
-            ]
-        },
-        center: [56, 35], // Trung điểm giữa Luxembourg và Hà Nội
-        zoom: 2
+        style: 'https://xmap.vn/lib/dark-vietnam.json',
+        center: initialCenter,
+        zoom: initialZoom,
+        pitch: 0,
+        bearing: 0,
     });
 
-    // Tạo đường thẳng đơn giản giữa hai điểm
-    function createSimplePath(start, end, numPoints = 50) {
-        const path = [];
-        for (let i = 0; i <= numPoints; i++) {
-            const ratio = i / numPoints;
-            const lon = start[0] + (end[0] - start[0]) * ratio;
-            const lat = start[1] + (end[1] - start[1]) * ratio;
-            path.push([lon, lat]);
-        }
-        return path;
-    }
-
-    // Tạo đường đi
-    const fullPath = createSimplePath(startPoint, endPoint, 100);
-    console.log('Đường đi đã tạo, số điểm:', fullPath.length);
-    
-    // GeoJSON data
-    const animatedLineData = {
-        'type': 'FeatureCollection',
-        'features': [{
-            'type': 'Feature',
-            'geometry': {
-                'type': 'LineString',
-                'coordinates': []
-            }
-        }]
-    };
-    
-    const fullLineData = {
-        'type': 'FeatureCollection',
-        'features': [{
-            'type': 'Feature',
-            'geometry': {
-                'type': 'LineString',
-                'coordinates': fullPath
-            }
-        }]
-    };
-    
-    const markersData = {
-        'type': 'FeatureCollection',
-        'features': [
-            {
-                'type': 'Feature',
-                'properties': { 'name': 'Luxembourg', 'type': 'start' },
-                'geometry': { 'type': 'Point', 'coordinates': startPoint }
-            },
-            {
-                'type': 'Feature',
-                'properties': { 'name': 'Hà Nội', 'type': 'end' },
-                'geometry': { 'type': 'Point', 'coordinates': endPoint }
-            }
-        ]
-    };
-
-    let animationId;
-    let animationStep = 0;
-    let isAnimating = false;
-
-    map.on('load', () => {
-        console.log('Bản đồ đã load xong');
-        
-        // Ẩn loading
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('controls').style.display = 'block';
-        
-        // Thêm sources
-        map.addSource('full-line', {
-            'type': 'geojson',
-            'data': fullLineData
-        });
-        
-        map.addSource('animated-line', {
-            'type': 'geojson',
-            'data': animatedLineData
-        });
-        
-        map.addSource('markers', {
-            'type': 'geojson',
-            'data': markersData
-        });
-
-        // Thêm layers
-        // Đường nền (đường đầy đủ mờ)
-        map.addLayer({
-            'id': 'full-line-layer',
-            'type': 'line',
-            'source': 'full-line',
-            'layout': {
-                'line-cap': 'round',
-                'line-join': 'round'
-            },
-            'paint': {
-                'line-color': '#cccccc',
-                'line-width': 3,
-                'line-opacity': 0.6,
-                'line-dasharray': [3, 3]
-            }
-        });
-
-        // Đường animation
-        map.addLayer({
-            'id': 'animated-line-layer',
-            'type': 'line',
-            'source': 'animated-line',
-            'layout': {
-                'line-cap': 'round',
-                'line-join': 'round'
-            },
-            'paint': {
-                'line-color': '#FF6B6B',
-                'line-width': 5,
-                'line-opacity': 1
-            }
-        });
-
-        // Markers
-        map.addLayer({
-            'id': 'markers-layer',
-            'type': 'circle',
-            'source': 'markers',
-            'paint': {
-                'circle-radius': [
-                    'case',
-                    ['==', ['get', 'type'], 'start'], 10,
-                    12
-                ],
-                'circle-color': [
-                    'case',
-                    ['==', ['get', 'type'], 'start'], '#4CAF50',
-                    '#FF4444'
-                ],
-                'circle-stroke-color': '#ffffff',
-                'circle-stroke-width': 3
-            }
-        });
-
-        // Thêm labels cho markers
-        map.addLayer({
-            'id': 'markers-labels',
-            'type': 'symbol',
-            'source': 'markers',
-            'layout': {
-                'text-field': ['get', 'name'],
-                'text-font': ['Open Sans Regular'],
-                'text-offset': [0, 2],
-                'text-anchor': 'top',
-                'text-size': 14
-            },
-            'paint': {
-                'text-color': '#000000',
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2
-            }
-        });
-
-        // Fit view để hiển thị cả hai điểm
-        const bounds = new maplibregl.LngLatBounds();
-        bounds.extend(startPoint);
-        bounds.extend(endPoint);
-        map.fitBounds(bounds, { 
-            padding: 80,
-            maxZoom: 4
-        });
-        
-        console.log('Các layer đã được thêm thành công');
-    });
-
-    // Hàm animation
-    function animate() {
-        if (animationStep >= fullPath.length) {
-            // Kết thúc animation
-            isAnimating = false;
-            document.getElementById('animate').textContent = 'Bắt đầu lại';
-            document.getElementById('animate').classList.remove('animating');
-            return;
-        }
-
-        // Cập nhật đường animation
-        const currentPath = fullPath.slice(0, animationStep + 1);
-        animatedLineData.features[0].geometry.coordinates = currentPath;
-        map.getSource('animated-line').setData(animatedLineData);
-        
-        animationStep += 1;
-        
-        if (isAnimating) {
-            animationId = requestAnimationFrame(() => {
-                setTimeout(animate, 50); // Tốc độ animation (50ms = 20fps)
-            });
-        }
-    }
-
-    // Xử lý sự kiện buttons
-    document.getElementById('animate').addEventListener('click', () => {
-        console.log('Animation button clicked');
-        
-        if (!isAnimating) {
-            if (animationStep >= fullPath.length) {
-                // Reset if animation completed
-                animationStep = 0;
-                animatedLineData.features[0].geometry.coordinates = [];
-                map.getSource('animated-line').setData(animatedLineData);
-            }
-            
-            isAnimating = true;
-            document.getElementById('animate').textContent = 'Dừng lại';
-            document.getElementById('animate').classList.add('animating');
-            animate();
-        } else {
-            isAnimating = false;
-            document.getElementById('animate').textContent = 'Tiếp tục';
-            document.getElementById('animate').classList.remove('animating');
-            cancelAnimationFrame(animationId);
+    // Chờ bản đồ tải xong
+    map.on('load', async () => {
+        if (hasNodesParam) {
+            await handleNodesURL(map);
+        } else if (hasMarkerParam) {
+            handleMarkerURL(map);
         }
     });
+}
 
-    document.getElementById('reset').addEventListener('click', () => {
-        console.log('Reset button clicked');
-        
-        isAnimating = false;
-        animationStep = 0;
-        cancelAnimationFrame(animationId);
-        
-        animatedLineData.features[0].geometry.coordinates = [];
-        map.getSource('animated-line').setData(animatedLineData);
-        
-        document.getElementById('animate').textContent = 'Bắt đầu Animation';
-        document.getElementById('animate').classList.remove('animating');
-    });
-
-    // Xử lý lỗi
-    map.on('error', (e) => {
-        console.error('Map error:', e);
-    });
-    
-    console.log('Script đã được thiết lập hoàn tất');
+// Bắt đầu ứng dụng
+initializeApp();
 </script>
 </body>
 </html>

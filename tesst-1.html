@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Animate a line</title>
-    <meta property="og:description" content="Animate a line by updating a GeoJSON source on each frame." />
+    <title>Draw a line from A to B</title>
     <meta charset='utf-8'>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css' />
@@ -16,49 +15,50 @@
 <div id="map"></div>
 
 <script>
+    // Tọa độ của Hồ Gươm và Cầu Long Biên
+    const hoanKiemLake = [105.8523, 21.0285]; // Kinh độ, Vĩ độ
+    const longBienBridge = [105.8596, 21.0435]; // Kinh độ, Vĩ độ
+    const realRouteCoordinates = [
+    [105.8523, 21.0285], // Hồ Gươm
+    [105.8525, 21.0301], // Một điểm rẽ
+    [105.8532, 21.0345], // Điểm tiếp theo
+    // ...hàng trăm hoặc hàng nghìn điểm khác...
+    [105.8596, 21.0435]  // Cầu Long Biên
+];
+
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://xmap.vn/lib/dark-vietnam.json',
-        center: [0, 0],
-        zoom: 0.5,
+        // Đặt trung tâm bản đồ ở giữa hai điểm
+        center: [(hoanKiemLake[0] + longBienBridge[0]) / 2, (hoanKiemLake[1] + longBienBridge[1]) / 2],
+        zoom: 13, // Căn chỉnh mức zoom để nhìn rõ cả hai điểm
         pitch: 0,
         bearing: 0,
     });
 
-    // Create a GeoJSON source with an empty lineString.
-    const geojson = {
-        'type': 'FeatureCollection',
-        'features': [
-            {
+    map.on('load', () => {
+        // Tạo một GeoJSON source với hai điểm tọa độ
+        map.addSource('route', {
+            'type': 'geojson',
+            'data': {
                 'type': 'Feature',
+                'properties': {},
                 'geometry': {
                     'type': 'LineString',
-                    'coordinates': [[0, 0]]
+                    // Đường thẳng nối từ Hồ Gươm đến Cầu Long Biên
+                    'coordinates': [hoanKiemLake, longBienBridge]
                 }
             }
-        ]
-    };
-
-    const speedFactor = 30; // number of frames per longitude degree
-    let animation; // to store and cancel the animation
-    let startTime = 0;
-    let progress = 0; // progress = timestamp - startTime
-    let resetTime = false; // indicator of whether time reset is needed for the animation
-
-    map.on('load', () => {
-        map.addSource('line', {
-            'type': 'geojson',
-            'data': geojson
         });
 
-        // add the line which will be modified in the animation
+        // Thêm layer để hiển thị đường thẳng
         map.addLayer({
-            'id': 'line-animation',
+            'id': 'route-line',
             'type': 'line',
-            'source': 'line',
+            'source': 'route',
             'layout': {
-                'line-cap': 'round',
-                'line-join': 'round'
+                'line-join': 'round',
+                'line-cap': 'round'
             },
             'paint': {
                 'line-color': '#ed6498',
@@ -66,37 +66,6 @@
                 'line-opacity': 0.8
             }
         });
-
-        startTime = performance.now();
-
-        animateLine();
-
-        // animated in a circle as a sine wave along the map.
-        function animateLine(timestamp) {
-            if (resetTime) {
-                // resume previous progress
-                startTime = performance.now() - progress;
-                resetTime = false;
-            } else {
-                progress = timestamp - startTime;
-            }
-
-            // restart if it finishes a loop
-            if (progress > speedFactor * 360) {
-                startTime = timestamp;
-                geojson.features[0].geometry.coordinates = [];
-            } else {
-                const x = progress / speedFactor;
-                // draw a sine wave with some math.
-                const y = Math.sin((x * Math.PI) / 90) * 40;
-                // append new coordinates to the lineString
-                geojson.features[0].geometry.coordinates.push([x, y]);
-                // then update the map
-                map.getSource('line').setData(geojson);
-            }
-            // Request the next frame of the animation.
-            animation = requestAnimationFrame(animateLine);
-        }
     });
 </script>
 </body>
